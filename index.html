@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Physical Event Experience Assistant - Optimize crowd routing and virtual queuing for large sporting venues">
+    
+    <!-- Content Security Policy: Restrict resources -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://maps.gstatic.com https://maps.googleapis.com;">
+
+    <title>VenueCrowd Optimizer</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Skip to main content for keyboard users -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header role="banner" class="main-header">
+        <div class="logo">
+            <h1>VenueCrowd Optimizer</h1>
+        </div>
+        <div class="header-controls">
+            <button id="auth-btn" class="btn btn-primary" aria-label="Sign in securely">
+                <span class="btn-text">Sign In</span>
+            </button>
+            <div id="user-profile" style="display: none;" aria-live="polite">
+                <span id="user-greeting" class="user-greeting"></span>
+            </div>
+            <button id="toggle-contrast-btn" class="btn btn-secondary" aria-label="Toggle High Contrast Mode">Contrast</button>
+        </div>
+    </header>
+
+    <div class="layout-container">
+        <nav role="navigation" aria-label="Primary Actions" class="sidebar">
+            <!-- Problem Statement 1: Crowd Movement & Pathfinding -->
+            <article class="panel">
+                <h2>Pathfinder: Crowd Optimization</h2>
+                <form id="routing-form">
+                    <fieldset>
+                        <legend class="sr-only">Route Options</legend>
+                        <label for="route-from">Start location:</label>
+                        <select id="route-from" required aria-required="true">
+                            <option value="">Select point...</option>
+                            <option value="gate_a">North Gate (A)</option>
+                            <option value="food_court">Central Concessions</option>
+                            <option value="section_101">Seating Section 101</option>
+                        </select>
+
+                        <label for="route-to">Destination:</label>
+                        <select id="route-to" required aria-required="true">
+                            <option value="">Select point...</option>
+                            <option value="gate_a">North Gate (A)</option>
+                            <option value="food_court">Central Concessions</option>
+                            <option value="section_101">Seating Section 101</option>
+                        </select>
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="wheelchair-access" />
+                            <label for="wheelchair-access">Prioritize Wheelchair Accessible Route</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-full" aria-label="Calculate optimized route">
+                            Calculate Route
+                        </button>
+                    </fieldset>
+                </form>
+                
+                <div id="route-result-container" aria-live="polite" class="result-box hidden">
+                    <h3 id="route-result-title">Optimal Route:</h3>
+                    <p id="route-result-text"></p>
+                </div>
+            </article>
+
+            <!-- Problem Statement 2: Virtual Queuing -->
+            <article class="panel">
+                <h2>Virtual Queuing</h2>
+                <p class="panel-desc">Avoid physical lines by joining a virtual queue.</p>
+                <form id="queue-form">
+                    <label for="queue-target">Attraction:</label>
+                    <select id="queue-target" required aria-required="true">
+                        <option value="merch_main">Main Merchandise Tent</option>
+                        <option value="concession_1">Burger & Fries Concession</option>
+                    </select>
+                    <button type="submit" class="btn btn-secondary w-full" aria-label="Join virtual queue">
+                        Join Queue
+                    </button>
+                </form>
+
+                <div id="queue-status-container" aria-live="polite" class="result-box hidden">
+                    <h3 id="queue-status-title">Queue Status</h3>
+                    <p id="queue-status-estimate"></p>
+                    <button id="add-to-calendar-btn" class="btn btn-action" aria-label="Add Queue reminder to Google Calendar" style="margin-top: 10px;">
+                        Add to Calendar
+                    </button>
+                </div>
+            </article>
+
+            <!-- Translation and Documents -->
+            <article class="panel">
+                <h2>Services & Tickets</h2>
+                <button id="translate-btn" class="btn btn-secondary w-full" aria-label="Translate interface to Spanish">
+                    Translate to Spanish (Google Mock)
+                </button>
+                <button id="ticket-save-btn" class="btn btn-secondary w-full" aria-label="Save ticket securely to Google Drive" style="margin-top: 10px;">
+                    Save Ticket to Drive (Mock)
+                </button>
+            </article>
+        </nav>
+
+        <main id="main-content" role="main" class="main-content">
+            <!-- Heatmap / Maps Integration -->
+            <section aria-labelledby="map-heading" class="map-section">
+                <h2 id="map-heading" class="sr-only">Live Venue Heatmap</h2>
+                <div id="map-container" class="map-container card">
+                    <div id="map" aria-label="Interactive map simulation showing crowd density">
+                        <div class="map-loading-state">
+                            <p>Loading Google Maps & Heatmap overlay...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PubSub Events broadcast -->
+            <section class="events-feed card" aria-labelledby="events-heading">
+                <h2 id="events-heading">Live Event Coordination Feed</h2>
+                <ul id="events-list" aria-live="polite" class="events-list">
+                    <li><span class="timestamp">18:00</span> <span class="event-msg">System Initialized. Welcome to the Venue.</span></li>
+                </ul>
+                <button id="simulate-alert-btn" class="btn btn-danger mt-4" aria-label="Admin: Simulate Emergency Pub/Sub Push">Simulate Emergency</button>
+            </section>
+        </main>
+    </div>
+
+    <!-- Live Assertive Region for Screen Readers (Emergency/Errors) -->
+    <div id="assertive-announcements" aria-live="assertive" class="sr-only"></div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
