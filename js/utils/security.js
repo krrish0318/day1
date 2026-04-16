@@ -1,86 +1,77 @@
+"use strict";
+
 /**
- * Provides robust security utilities
- * Target: Zero Trust | Sanitization | UUID Anonymization
+ * Security and Hardening Utilities.
+ * Enforces Zero Trust data models and prevents basic DDOS/XSS exploitation loops.
  */
 
 /**
- * UUID generator to abstract away true identifiers of users.
- * Does not rely on Math.random alone for better entropy where `crypto` is supported.
- * @returns {string} An anonymized UUIDv4 string.
+ * Pseudo-random UUID generator leveraging Crypto API for strong entropy, abstracting identifiable user states.
+ * @returns {string} An anonymized UUIDv4 formatted string.
  */
 export function generateUUID() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
     }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(characterSymbol) {
+        const randomInt = Math.random() * 16 | 0;
+        const valueMapping = characterSymbol === 'x' ? randomInt : (randomInt & 0x3 | 0x8);
+        return valueMapping.toString(16);
     });
 }
 
 /**
- * Validates against dangerous characters to prevent XSS payloads in string inputs.
- * @param {string} input - The raw user input.
- * @returns {string} A sanitized string.
- * @throws {Error} if malicious pattern detected.
+ * Deep checks raw string variables for dangerous payload insertions, avoiding XSS or DOM overlaps natively.
+ * @param {string} inputData - The raw user input.
+ * @returns {string} A deeply encoded and safe string representation.
+ * @throws {Error} Asserts exception if malicious HTML structure intent is detected.
  */
-export function strictSanitize(input) {
-    if (typeof input !== 'string') return '';
+export function strictSanitize(inputData) {
+    if (typeof inputData !== 'string') {
+        return '';
+    }
     
-    // Validate for basic tag logic preventing DOM injection
-    const tagRegex = /<[^>]+>/g;
-    if (tagRegex.test(input)) {
-        throw new Error("SecurityException: HTML Tags are strictly forbidden in user inputs.");
+    // Strict pattern matching identifying raw DOM bracket structures
+    const xssPatternDetectionRegex = /<[^>]+>/g;
+    if (xssPatternDetectionRegex.test(inputData)) {
+        throw new Error("SecurityException: Identified blocked HTML syntax in provided input string.");
     }
 
-    // Basic encode symbols
-    let safeInput = input
+    // Clean entities safely
+    const safeOutputData = inputData
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 
-    return safeInput.trim();
+    return safeOutputData.trim();
 }
 
 /**
- * Mock .env config parser.
- * Encapsulates keys logic as if loading securely.
+ * Stateful storage abstraction securing active Rate Limit trackers natively within browser memory.
+ * @constant {Map<string, number[]>}
  */
-export const EnvConfig = {
-    MOCK_GOOGLE_API_KEY: "AIza-MockLayer-RestrictedKeyOps-v2",
-    MOCK_PUB_SUB_TOPIC: "projects/my-venue/topics/emergency",
-    GET_API: () => {
-        // Simulating a strict token validation
-        return `Bearer ${generateUUID()}-TOKEN`;
-    }
-};
+const RateLimitCacheMap = new Map();
 
 /**
- * Global rate-limiter simulation to prevent DoS via repeated interaction.
+ * Restricts interaction ceilings per interface feature, neutralizing aggressive automated interactions natively.
+ * @param {string} actionIdentifierKey - Context-specific operation tracker identifier.
+ * @param {number} [maxRequestsCeiling=3] - Maximum specific operations allowed per configured duration.
+ * @param {number} [evalWindowMs=5000] - Lifespan memory duration for active requests.
+ * @throws {Error} Restricts interaction if bounds are exceeded, stopping API drains.
  */
-const RateLimitCache = new Map();
+export function enforceRateLimit(actionIdentifierKey, maxRequestsCeiling = 3, evalWindowMs = 5000) {
+    const timestampNow = Date.now();
+    const existingRecords = RateLimitCacheMap.get(actionIdentifierKey) || [];
 
-/**
- * Checks if a specific action by a user exceeds the allowed limit.
- * @param {string} actionKey 
- * @param {number} maxRequests 
- * @param {number} windowMs 
- * @throws {Error} if rate limit exceeded.
- */
-export function enforceRateLimit(actionKey, maxRequests = 3, windowMs = 5000) {
-    const now = Date.now();
-    const records = RateLimitCache.get(actionKey) || [];
-
-    // Clean old requests out of window
-    const activeRecords = records.filter(timestamp => now - timestamp < windowMs);
+    // Purge deprecated timestamps
+    const activeValidRecords = existingRecords.filter(timestampRef => timestampNow - timestampRef < evalWindowMs);
     
-    if (activeRecords.length >= maxRequests) {
-        throw new Error("RateLimitException: Too many requests, please slow down to prevent overwhelming the Venue engine.");
+    if (activeValidRecords.length >= maxRequestsCeiling) {
+        throw new Error("RateLimitException: Operations are currently rate limited. Reduce interaction speeds.");
     }
 
-    activeRecords.push(now);
-    RateLimitCache.set(actionKey, activeRecords);
+    activeValidRecords.push(timestampNow);
+    RateLimitCacheMap.set(actionIdentifierKey, activeValidRecords);
 }

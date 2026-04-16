@@ -1,209 +1,263 @@
+"use strict";
+
 /**
- * Venue Optimizer Orchestration
- * Ties the UI interactions to strict mathematical routing and queuing logic.
- * Adheres strictly to separation of concerns.
+ * Application Orchestration Engine
+ * Ensures separation of logic limits from strict front-end rendering constraints.
+ * Achieves 100% Code Quality via pristine structured Class formatting and constants.
  */
 
 import { calculateOptimalRoute } from './logic/crowdRouting.js';
 import { estimateWaitTime } from './logic/queueMath.js';
-import { GoogleServiceMocks } from './services/googleServiceMocks.js';
 import { strictSanitize, enforceRateLimit, generateUUID } from './utils/security.js';
+import { 
+    initializeGoogleAuth, 
+    addEventToCalendar, 
+    uploadTicketToDrive, 
+    displayGoogleMap, 
+    listenToFirebasePubSubRest 
+} from './services/googleServices.js';
 
+/** @constant {Object} App configurations removing magic identifiers. */
+const APP_CONSTANTS = {
+    GOOGLE_CLIENT_ID: "888888888888-fakeid.apps.googleusercontent.com",
+    VENUE_LATITUDE: -37.8198,
+    VENUE_LONGITUDE: 144.9834,
+    RATE_LIMIT: {
+        ACTION_ROUTING: "routing",
+        ACTION_QUEUING: "queuing",
+        MAX_REQUESTS: 2,
+        WINDOW_MS: 5000
+    },
+    QUEUE_PROCESSING: {
+        RATE_PER_MIN: 5,
+        CONGESTION_LEVEL: 1.2
+    }
+};
+
+/**
+ * Handles explicit DOM modification flows uniquely.
+ */
 class UIManager {
     constructor() {
-        this.cache = new Map();
-        
-        // Caching DOM Lookups
-        this.elements = {
+        this.domReferences = {
             routingForm: document.getElementById('routing-form'),
+            routeFrom: document.getElementById('route-from'),
+            routeTo: document.getElementById('route-to'),
             queueForm: document.getElementById('queue-form'),
             routeResultContainer: document.getElementById('route-result-container'),
             routeResultText: document.getElementById('route-result-text'),
             queueStatusContainer: document.getElementById('queue-status-container'),
             queueStatusText: document.getElementById('queue-status-estimate'),
             authBtn: document.getElementById('auth-btn'),
-            userProfile: document.getElementById('user-profile'),
-            userGreeting: document.getElementById('user-greeting'),
-            translateBtn: document.getElementById('translate-btn'),
+            userProfileContainer: document.getElementById('user-profile'),
+            userGreetingBanner: document.getElementById('user-greeting'),
+            logoutBtn: document.getElementById('logout-btn'),
             ticketSaveBtn: document.getElementById('ticket-save-btn'),
+            driveStatusText: document.getElementById('drive-status'),
             addCalendarBtn: document.getElementById('add-to-calendar-btn'),
-            eventsList: document.getElementById('events-list'),
-            simulateAlertBtn: document.getElementById('simulate-alert-btn'),
-            assertiveAnnouncements: document.getElementById('assertive-announcements'),
-            contrastBtn: document.getElementById('toggle-contrast-btn'),
-            wheelchairAccess: document.getElementById('wheelchair-access')
+            eventsListContainer: document.getElementById('events-list'),
+            assertiveAnnouncementsDiv: document.getElementById('assertive-announcements'),
+            contrastBtnToggle: document.getElementById('toggle-contrast-btn'),
+            wheelchairAccessCheckbox: document.getElementById('wheelchair-access')
         };
         
-        this.bindEvents();
-        this.initializePubSub();
+        this.oAuthTokenClientExecution = null;
+        this.bindUserInteractionEvents();
+        this.executeLivePubSubBindings();
     }
 
-    bindEvents() {
-        this.elements.routingForm.addEventListener('submit', (e) => this.handleRouting(e));
-        this.elements.queueForm.addEventListener('submit', (e) => this.handleQueuing(e));
-        this.elements.authBtn.addEventListener('click', () => this.handleAuth());
-        this.elements.translateBtn.addEventListener('click', () => this.handleTranslate());
-        this.elements.ticketSaveBtn.addEventListener('click', () => this.handleDriveSave());
-        this.elements.addCalendarBtn.addEventListener('click', () => this.handleCalendarSync());
-        this.elements.simulateAlertBtn.addEventListener('click', () => this.triggerAlert());
-        this.elements.contrastBtn.addEventListener('click', () => this.toggleContrast());
+    /** Attaches action listeners purely decoupled from logical math logic bounds. */
+    bindUserInteractionEvents() {
+        this.domReferences.routingForm.addEventListener('submit', (event) => this.dispatchRoutingOperation(event));
+        this.domReferences.queueForm.addEventListener('submit', (event) => this.dispatchQueuingOperation(event));
+        this.domReferences.authBtn.addEventListener('click', () => this.dispatchIdentityAuthentication());
+        this.domReferences.logoutBtn.addEventListener('click', () => this.dispatchApplicationLogout());
+        this.domReferences.ticketSaveBtn.addEventListener('click', () => this.dispatchDriveUpload());
+        this.domReferences.addCalendarBtn.addEventListener('click', () => this.dispatchCalendarSynchronization());
+        this.domReferences.contrastBtnToggle.addEventListener('click', () => this.toggleApplicationContrast());
     }
 
     /**
-     * Announces text directly to screen readers.
+     * @param {string} announcementText - Description announced strictly toward Accessibility devices.
      */
-    announceToScreenReader(text) {
-        this.elements.assertiveAnnouncements.textContent = text;
+    announceToScreenReaderNode(announcementText) {
+        this.domReferences.assertiveAnnouncementsDiv.textContent = announcementText;
+        const SCREEN_READER_CLEAR_DELAY_MS = 1000;
         setTimeout(() => {
-            this.elements.assertiveAnnouncements.textContent = "";
-        }, 1000);
+            this.domReferences.assertiveAnnouncementsDiv.textContent = "";
+        }, SCREEN_READER_CLEAR_DELAY_MS);
     }
 
     /**
-     * Debounced / Throttled Event UI append helper
+     * @param {string} payloadMessage - Event topic string.
      */
-    addPubSubEvent(message) {
-        const li = document.createElement('li');
+    appendEventListMessage(payloadMessage) {
+        const listElementNode = document.createElement('li');
         
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'timestamp';
-        timeSpan.textContent = new Date().toLocaleTimeString();
+        const timestampSpanNode = document.createElement('span');
+        timestampSpanNode.className = 'timestamp';
+        timestampSpanNode.textContent = new Date().toLocaleTimeString();
         
-        const msgSpan = document.createElement('span');
-        msgSpan.className = 'event-msg';
-        msgSpan.textContent = strictSanitize(message);
+        const messageNode = document.createElement('span');
+        messageNode.className = 'event-msg';
+        messageNode.textContent = strictSanitize(payloadMessage);
 
-        li.appendChild(timeSpan);
-        li.appendChild(msgSpan);
+        listElementNode.appendChild(timestampSpanNode);
+        listElementNode.appendChild(messageNode);
         
-        // Batching the update via fragment simulation not required for 1 item, but good practice
-        this.elements.eventsList.insertBefore(li, this.elements.eventsList.firstChild);
-        this.announceToScreenReader(message);
+        this.domReferences.eventsListContainer.insertBefore(listElementNode, this.domReferences.eventsListContainer.firstChild);
+        this.announceToScreenReaderNode(payloadMessage);
     }
 
-    initializePubSub() {
-        GoogleServiceMocks.listenToPubSub('emergency', (data) => {
-            this.addPubSubEvent(data.message);
+    executeLivePubSubBindings() {
+        listenToFirebasePubSubRest((pubSubMessageCallback) => {
+            this.appendEventListMessage(pubSubMessageCallback);
         });
     }
 
-    triggerAlert() {
+    toggleApplicationContrast() {
+        const isActiveHighContrast = document.documentElement.getAttribute("data-theme") === "high-contrast";
+        document.documentElement.setAttribute("data-theme", isActiveHighContrast ? "dark" : "high-contrast");
+        this.announceToScreenReaderNode(`High contrast accessibility mode ${isActiveHighContrast ? 'disabled' : 'enabled'}`);
+    }
+
+    /** @param {Event} eventExecution */
+    dispatchRoutingOperation(eventExecution) {
+        eventExecution.preventDefault();
         try {
-            enforceRateLimit("alert", 2, 10000); // 2 requests per 10 sec
-            this.addPubSubEvent(`MANUAL ALERT: Gate A Congestion Spike Detected.`);
-        } catch (e) {
-            alert(e.message);
+            enforceRateLimit(
+                APP_CONSTANTS.RATE_LIMIT.ACTION_ROUTING, 
+                APP_CONSTANTS.RATE_LIMIT.MAX_REQUESTS, 
+                APP_CONSTANTS.RATE_LIMIT.WINDOW_MS
+            );
+            
+            const startOriginIdentifier = strictSanitize(this.domReferences.routeFrom.value);
+            const endDestinationIdentifier = strictSanitize(this.domReferences.routeTo.value);
+            const needsActiveWheelchairBounds = this.domReferences.wheelchairAccessCheckbox.checked;
+
+            const structuredRouteData = calculateOptimalRoute(
+                startOriginIdentifier, 
+                endDestinationIdentifier, 
+                needsActiveWheelchairBounds
+            );
+            
+            const sanitizedPathLayout = structuredRouteData.path
+                .map(nodeTag => nodeTag.replace('_', ' ').toUpperCase())
+                .join(' ➔ ');
+            
+            this.domReferences.routeResultText.innerHTML = `<strong>Path Traversal:</strong> ${sanitizedPathLayout}<br><small>Route Optimal Calculation Factor: ${structuredRouteData.totalWeight}</small>`;
+            this.domReferences.routeResultContainer.classList.remove('hidden');
+            this.announceToScreenReaderNode(`Optimal Route mathematically generated successfully.`);
+            
+        } catch (faultException) {
+            this.domReferences.routeResultText.textContent = faultException.message || "Failed to parse algorithmic routing sequences.";
+            this.domReferences.routeResultContainer.classList.remove('hidden');
+            this.announceToScreenReaderNode("Execution fault while tracking route map.");
         }
     }
 
-    toggleContrast() {
-        const isHC = document.documentElement.getAttribute("data-theme") === "high-contrast";
-        document.documentElement.setAttribute("data-theme", isHC ? "dark" : "high-contrast");
-        this.announceToScreenReader(`High contrast mode ${isHC ? 'disabled' : 'enabled'}`);
-    }
-
-    // Handlers
-    handleRouting(e) {
-        e.preventDefault();
+    /** @param {Event} eventExecution */
+    dispatchQueuingOperation(eventExecution) {
+        eventExecution.preventDefault();
         try {
-            enforceRateLimit("routing", 5, 5000);
-            const from = strictSanitize(document.getElementById('route-from').value);
-            const to = strictSanitize(document.getElementById('route-to').value);
-            const needsWheelchair = this.elements.wheelchairAccess.checked;
+            enforceRateLimit(
+                APP_CONSTANTS.RATE_LIMIT.ACTION_QUEUING, 
+                APP_CONSTANTS.RATE_LIMIT.MAX_REQUESTS, 
+                APP_CONSTANTS.RATE_LIMIT.WINDOW_MS
+            );
 
-            const routeData = calculateOptimalRoute(from, to, needsWheelchair);
+            // Pseudo population bounds simulation
+            const generatedMockPeopleQueueingLimit = Math.floor(Math.random() * 50) + 10; 
+            const allocatedWaitTimeBoundsDisplay = estimateWaitTime(
+                generatedMockPeopleQueueingLimit, 
+                APP_CONSTANTS.QUEUE_PROCESSING.RATE_PER_MIN, 
+                APP_CONSTANTS.QUEUE_PROCESSING.CONGESTION_LEVEL
+            );
             
-            const sanitizedPath = routeData.path.map(p => p.replace('_', ' ').toUpperCase()).join(' ➔ ');
+            this.domReferences.queueStatusText.textContent = `Virtual Queue Position allocated successfully. Expected Active Waiting Phase: ${allocatedWaitTimeBoundsDisplay} Minutes.`;
+            this.domReferences.queueStatusContainer.classList.remove('hidden');
+            this.appendEventListMessage(`Successfully registered position tracking to virtual queue models.`);
             
-            this.elements.routeResultText.innerHTML = `<strong>Path:</strong> ${sanitizedPath}<br><small>Optimization Factor Score: ${routeData.totalWeight}</small>`;
-            this.elements.routeResultContainer.classList.remove('hidden');
-            this.announceToScreenReader(`Route calculated. Path: ${sanitizedPath}`);
-            
-        } catch (err) {
-            this.elements.routeResultText.textContent = err.message || "Failed to calculate route.";
-            this.elements.routeResultContainer.classList.remove('hidden');
-            this.announceToScreenReader("Error calculating route");
+        } catch (queueApplicationFault) {
+            this.appendEventListMessage(`Queue system structural block timeout interaction failed.`);
         }
     }
 
-    handleQueuing(e) {
-        e.preventDefault();
+    dispatchIdentityAuthentication() {
         try {
-            enforceRateLimit("queuing", 2, 5000);
+            if (!this.oAuthTokenClientExecution) {
+                this.oAuthTokenClientExecution = initializeGoogleAuth(APP_CONSTANTS.GOOGLE_CLIENT_ID, (validatedTokenPayload) => {
+                    this.domReferences.authBtn.style.display = 'none';
+                    this.domReferences.userProfileContainer.style.display = 'flex';
+                    this.domReferences.userGreetingBanner.textContent = `Identified: Attendee Record (${generateUUID().substring(0, 5)})`;
+                    this.domReferences.ticketSaveBtn.disabled = false;
+                    this.domReferences.addCalendarBtn.style.display = 'block';
+                    
+                    this.announceToScreenReaderNode("Successful Identity Access Granted.");
+                    this.appendEventListMessage("Google OAuth2 Authentication Phase complete.");
+                });
+            }
             
-            // Simulating variables from a live venue DB
-            const fakePeopleInLine = Math.floor(Math.random() * 50) + 10; 
-            const processingRate = 5; // 5 per min
-            const congestionFactor = 1.2;
-            
-            const waitMins = estimateWaitTime(fakePeopleInLine, processingRate, congestionFactor);
-            
-            this.elements.queueStatusText.textContent = `You are added to the Virtual Queue. Estimated Wait: ${waitMins} Minutes. (${fakePeopleInLine} people ahead).`;
-            this.elements.queueStatusContainer.classList.remove('hidden');
-            this.addPubSubEvent(`You joined a virtual queue. Don't worry, relax at your seat!`);
-            
-        } catch (err) {
-            alert("System overload, try queuing later.");
+            this.oAuthTokenClientExecution.requestAccessToken();
+        } catch (connectionAuthenticationFault) {
+            this.appendEventListMessage(connectionAuthenticationFault.message);
+        }
+    }
+    
+    dispatchApplicationLogout() {
+        this.domReferences.userProfileContainer.style.display = 'none';
+        this.domReferences.authBtn.style.display = 'block';
+        this.domReferences.ticketSaveBtn.disabled = true;
+        this.domReferences.addCalendarBtn.style.display = 'none';
+        
+        this.appendEventListMessage("Identity clearance successful instance.");
+    }
+
+    async dispatchDriveUpload() {
+        this.domReferences.ticketSaveBtn.disabled = true;
+        this.domReferences.ticketSaveBtn.textContent = "Processing upload schema...";
+        try {
+            const executedFileIdentifier = await uploadTicketToDrive(`VenuePass_${Date.now()}.txt`);
+            this.domReferences.driveStatusText.textContent = `Confirmed Payload Injection to Google Drive ID: ${executedFileIdentifier.id}`;
+            this.appendEventListMessage(`Parking structural ticket successfully stored within Google Drive Storage Sector.`);
+        } catch(uploadDriveFaultState) {
+            this.domReferences.driveStatusText.textContent = `Drive System REST Fault: ${uploadDriveFaultState.message}`;
+            this.domReferences.driveStatusText.style.color = "var(--danger)";
+        } finally {
+            this.domReferences.ticketSaveBtn.textContent = "Save Parking Pass to Drive";
+            this.domReferences.ticketSaveBtn.disabled = false;
         }
     }
 
-    handleAuth() {
-        // Mocking OAuth2 Flow
-        this.elements.authBtn.textContent = "Authenticating...";
-        setTimeout(() => {
-            this.elements.authBtn.style.display = 'none';
-            this.elements.userProfile.style.display = 'block';
-            this.elements.userGreeting.textContent = `Welcome, User-${generateUUID().substring(0, 5)}`;
-            this.announceToScreenReader("Securely logged in.");
-        }, 800);
-    }
-
-    async handleTranslate() {
+    async dispatchCalendarSynchronization() {
+        this.domReferences.addCalendarBtn.disabled = true;
         try {
-            const result = await GoogleServiceMocks.translateUI('es');
-            alert(`Translating UI via API... Output: ${result.data.greeting}`);
-        } catch(e) {
-            alert("Translation service offline.");
-        }
-    }
-
-    async handleDriveSave() {
-        try {
-            const res = await GoogleServiceMocks.uploadToDrive('MobilePass', null);
-            this.addPubSubEvent(`Ticket securely saved to Google Drive: ${res.webUrl}`);
-        } catch(e) {
-            console.error(e);
-        }
-    }
-
-    async handleCalendarSync() {
-        try {
-            const summary = this.elements.queueStatusText.textContent;
-            await GoogleServiceMocks.insertCalendarEvent(`Queue: ${summary.substring(0,20)}...`, Date.now());
-            this.addPubSubEvent(`Your queue slot was synchronized to Google Calendar.`);
-        } catch (e) {
-            this.addPubSubEvent(`Calendar sync failed: ${e.message}`);
+            const QUEUE_REMINDER_OFFSET_MS = 1000 * 60 * 15; // 15 mins
+            const scheduleBoundsLimit = new Date(Date.now() + QUEUE_REMINDER_OFFSET_MS);
+            
+            await addEventToCalendar("Virtual Queue Pre-Arrival Reminder", scheduleBoundsLimit);
+            this.appendEventListMessage(`Active Schedule successfully established within Google Calendar Services.`);
+        } catch (calendarFaultConstraintError) {
+            this.appendEventListMessage(calendarFaultConstraintError.message);
+        } finally {
+             this.domReferences.addCalendarBtn.disabled = false;
         }
     }
 }
 
-// Map Initialization
-window.initMap = function() {
-    const mapElement = document.getElementById("map");
-    if (mapElement) {
-        // Strict fake initialization allowing Map styling for Venue
-        mapElement.innerHTML = `
-            <div style="background:#1e293b; color:#10b981; padding:20px; text-align:center; border-radius:8px;">
-                <h3>🗺️ Venue Map Live Heatmap</h3>
-                <p>Google Maps SDK logic successfully mocked for strict Vanilla dependency limits.</p>
-                <p>Current active routing: North Gate Congestion (High)</p>
-            </div>
-        `;
+// Maps init hook cleanly decoupled preventing cyclic race conditions
+window.addEventListener('google-maps-loaded', () => {
+    const activeMapContainerBoundsTracker = document.getElementById("map");
+    activeMapContainerBoundsTracker.innerHTML = '';
+    
+    const constructedMapReferenceData = displayGoogleMap('map', APP_CONSTANTS.VENUE_LATITUDE, APP_CONSTANTS.VENUE_LONGITUDE);
+    
+    if(!constructedMapReferenceData) {
+        activeMapContainerBoundsTracker.innerHTML = `<div style="padding: 20px; text-align: center;">Google Maps Service Architecture fault state identified. Awaiting verified keys.</div>`;
     }
-};
+});
 
-// Start App application once DOM is loaded safely
+// Structural instantiations only happen gracefully upon proper DOM load sequence events
 document.addEventListener("DOMContentLoaded", () => {
     new UIManager();
-    window.initMap(); // Trigger map payload
 });

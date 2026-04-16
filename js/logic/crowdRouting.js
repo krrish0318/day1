@@ -1,9 +1,19 @@
+"use strict";
+
 /**
- * Crowd Routing Logic
- * Implements weighted graph routing (A* behavior simulation) to optimize attendee movement.
+ * Crowd Routing Logic Layer
+ * Integrates algorithmic Weighted Graph routing simulating path traversal to optimize attendee movement 
+ * while penalizing congested edges and wheelchair-inaccessible routes.
  */
 
+/**
+ * Custom Error for mapping and logical Graph faults.
+ * @extends Error
+ */
 export class GraphError extends Error {
+    /**
+     * @param {string} message - Clear specification of the node constraint violation.
+     */
     constructor(message) {
         super(message);
         this.name = "GraphError";
@@ -11,82 +21,98 @@ export class GraphError extends Error {
 }
 
 /**
- * Static Venue Mapping Nodes and Edges
+ * Immutable Static Venue Mapping Constants
+ * Abstracted representation of node paths and specific transition costs.
+ * @constant {Object}
  */
-const VenueGraph = {
-    "gate_a": { "concourse_north": { cost: 2, congestion: 1.5 } },
-    "concourse_north": { "gate_a": { cost: 2, congestion: 1 }, "section_101": { cost: 3, congestion: 1.2 }, "food_court": { cost: 5, congestion: 2.0 } },
-    "section_101": { "concourse_north": { cost: 3, congestion: 1 } },
-    "food_court": { "concourse_north": { cost: 5, congestion: 1.2 } }
+export const VENUE_GRAPH_CONSTANTS = {
+    "gate_a": { "concourse_north": { baseCost: 2, liveCongestion: 1.5 } },
+    "concourse_north": { 
+        "gate_a": { baseCost: 2, liveCongestion: 1.0 }, 
+        "section_101": { baseCost: 3, liveCongestion: 1.2 }, 
+        "food_court": { baseCost: 5, liveCongestion: 2.0 } 
+    },
+    "section_101": { "concourse_north": { baseCost: 3, liveCongestion: 1.0 } },
+    "food_court": { "concourse_north": { baseCost: 5, liveCongestion: 1.2 } }
 };
 
 /**
- * Calculates the best path minimizing the product of physical distance (cost) and crowd density (congestion).
+ * Algorithmic path optimization assessing weights of transition costs against live congestion.
  * 
- * @param {string} startNode - Graph node key.
- * @param {string} endNode - Graph node key.
- * @param {boolean} requireWheelchair - True if the route must exclude stairs (simulated via high cost).
- * @returns {Object} Optimized path details.
+ * @param {string} startNode - Origin graph node identifier.
+ * @param {string} endNode - Destination graph node identifier.
+ * @param {boolean} requireWheelchair - True if the route must exclude physically hazardous edges (e.g. stairs).
+ * @returns {{path: string[], totalWeight: number, accessible: boolean}} Optimized path trace map.
+ * @throws {GraphError} Validates node bounds before execution.
  */
 export function calculateOptimalRoute(startNode, endNode, requireWheelchair = false) {
-    if (!VenueGraph[startNode] || (!VenueGraph[endNode] && startNode !== endNode)) {
-        throw new GraphError("Node does not exist in venue map.");
+    const STAIRS_PENALTY_WEIGHT = 100;
+    const WHEELCHAIR_INACCESSIBLE_COST_THRESHOLD = 3;
+
+    if (!VENUE_GRAPH_CONSTANTS[startNode] || (!VENUE_GRAPH_CONSTANTS[endNode] && startNode !== endNode)) {
+        throw new GraphError("Target or origin node does not exist within the established bounds of the venue map.");
     }
 
     if (startNode === endNode) {
         return { path: [startNode], totalWeight: 0, accessible: true };
     }
 
-    // Simplified BFS/Dijkstra logic for Demo
-    // In production, this utilizes advanced PriorityQueues.
-    const distances = {};
-    const previous = {};
-    const queue = new Set(Object.keys(VenueGraph));
+    const pathDistances = {};
+    const previousNodeMap = {};
+    const unvisitedQueue = new Set(Object.keys(VENUE_GRAPH_CONSTANTS));
 
-    for (const node of queue) distances[node] = Infinity;
-    distances[startNode] = 0;
+    for (const node of unvisitedQueue) {
+        pathDistances[node] = Infinity;
+    }
+    pathDistances[startNode] = 0;
 
-    while (queue.size > 0) {
-        // Find minimum distance node
-        let minNode = null;
-        for (const node of queue) {
-            if (!minNode || distances[node] < distances[minNode]) {
-                minNode = node;
+    let iterations = 0;
+    const MAX_ITERATIONS = 5000; // Protection mechanism
+
+    while (unvisitedQueue.size > 0 && iterations < MAX_ITERATIONS) {
+        iterations++;
+        
+        // Locate minimum path distance node
+        let minDistanceNode = null;
+        for (const node of unvisitedQueue) {
+            if (!minDistanceNode || pathDistances[node] < pathDistances[minDistanceNode]) {
+                minDistanceNode = node;
             }
         }
 
-        if (distances[minNode] === Infinity) break;
-        if (minNode === endNode) break; // Reached target
+        if (pathDistances[minDistanceNode] === Infinity || minDistanceNode === endNode) {
+            break;
+        }
 
-        queue.delete(minNode);
+        unvisitedQueue.delete(minDistanceNode);
 
-        for (const neighbor in VenueGraph[minNode]) {
-            const edge = VenueGraph[minNode][neighbor];
-            // If wheelchair access is required, any route with high native cost gets heavily penalized to simulate stairs avoidance.
-            let weight = edge.cost * edge.congestion;
-            if (requireWheelchair && edge.cost > 3) {
-                weight += 100; 
+        for (const neighborNode in VENUE_GRAPH_CONSTANTS[minDistanceNode]) {
+            const edgeData = VENUE_GRAPH_CONSTANTS[minDistanceNode][neighborNode];
+            let activeWeight = edgeData.baseCost * edgeData.liveCongestion;
+            
+            if (requireWheelchair && edgeData.baseCost > WHEELCHAIR_INACCESSIBLE_COST_THRESHOLD) {
+                activeWeight += STAIRS_PENALTY_WEIGHT; 
             }
 
-            const alt = distances[minNode] + weight;
-            if (alt < distances[neighbor]) {
-                distances[neighbor] = alt;
-                previous[neighbor] = minNode;
+            const alternativePathDistance = pathDistances[minDistanceNode] + activeWeight;
+            if (alternativePathDistance < pathDistances[neighborNode]) {
+                pathDistances[neighborNode] = alternativePathDistance;
+                previousNodeMap[neighborNode] = minDistanceNode;
             }
         }
     }
 
-    // Trace path
-    const path = [];
-    let curr = endNode;
-    while (curr) {
-        path.unshift(curr);
-        curr = previous[curr];
+    // Trace generated optimal path backwards
+    const optimalPathTrace = [];
+    let traversalCursor = endNode;
+    while (traversalCursor) {
+        optimalPathTrace.unshift(traversalCursor);
+        traversalCursor = previousNodeMap[traversalCursor];
     }
 
     return {
-        path,
-        totalWeight: distances[endNode],
+        path: optimalPathTrace,
+        totalWeight: pathDistances[endNode],
         accessible: requireWheelchair
     };
 }
